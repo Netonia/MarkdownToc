@@ -1,0 +1,144 @@
+﻿@page "/"
+@inject TocGeneratorService TocService
+@inject IJSRuntime JS
+
+<PageTitle>Markdown TOC Generator</PageTitle>
+
+<div class="toc-container">
+    <header class="toc-header">
+        <h1>Markdown TOC Generator</h1>
+        <p>Generate a table of contents from your Markdown headings</p>
+    </header>
+
+    <div class="toc-panels">
+        <div class="toc-panel toc-input-panel">
+            <h2>Markdown Input</h2>
+            <textarea 
+                class="toc-textarea" 
+                @bind="markdownInput" 
+                @bind:event="oninput"
+                placeholder="Paste your Markdown here...&#10;&#10;# Example Heading 1&#10;## Example Heading 2&#10;### Example Heading 3"></textarea>
+        </div>
+
+        <div class="toc-panel toc-output-panel">
+            <h2>Generated TOC</h2>
+            <div class="toc-output">
+                @if (showPreview)
+                {
+                    <div class="toc-html-preview">
+                        @((MarkupString)htmlOutput)
+                    </div>
+                }
+                else
+                {
+                    <pre class="toc-markdown-output">@markdownOutput</pre>
+                }
+            </div>
+        </div>
+    </div>
+
+    <footer class="toc-footer">
+        <button class="toc-button toc-button-primary" @onclick="BuildToc">
+            Build TOC
+        </button>
+        <button class="toc-button" @onclick="InsertToc">
+            Insert TOC
+        </button>
+        <button class="toc-button" @onclick="CopyToc">
+            Copy TOC
+        </button>
+        <button class="toc-button" @onclick="TogglePreview">
+            Toggle Preview (@(showPreview ? "HTML" : "Markdown"))
+        </button>
+    </footer>
+
+    @if (!string.IsNullOrEmpty(statusMessage))
+    {
+        <div class="toc-status @statusClass">@statusMessage</div>
+    }
+</div>
+
+@code {
+    private string markdownInput = "";
+    private string markdownOutput = "";
+    private string htmlOutput = "";
+    private bool showPreview = false;
+    private string statusMessage = "";
+    private string statusClass = "";
+
+    private void BuildToc()
+    {
+        try
+        {
+            var headings = TocService.ParseHeadings(markdownInput);
+            
+            if (headings.Count == 0)
+            {
+                ShowStatus("No headings found in the input.", "warning");
+                markdownOutput = "";
+                htmlOutput = "";
+                return;
+            }
+
+            markdownOutput = TocService.GenerateMarkdownToc(headings);
+            htmlOutput = TocService.GenerateHtmlToc(headings);
+            ShowStatus($"TOC generated successfully! Found {headings.Count} heading(s).", "success");
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Error: {ex.Message}", "error");
+        }
+    }
+
+    private void InsertToc()
+    {
+        if (string.IsNullOrEmpty(markdownOutput))
+        {
+            ShowStatus("Please generate TOC first.", "warning");
+            return;
+        }
+
+        markdownInput = markdownOutput + "\n\n" + markdownInput;
+        ShowStatus("TOC inserted at the top of the input.", "success");
+    }
+
+    private async Task CopyToc()
+    {
+        if (string.IsNullOrEmpty(markdownOutput))
+        {
+            ShowStatus("Please generate TOC first.", "warning");
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", markdownOutput);
+            ShowStatus("TOC copied to clipboard!", "success");
+        }
+        catch (Exception ex)
+        {
+            ShowStatus($"Failed to copy to clipboard: {ex.Message}", "error");
+        }
+    }
+
+    private void TogglePreview()
+    {
+        showPreview = !showPreview;
+    }
+
+    private void ShowStatus(string message, string type)
+    {
+        statusMessage = message;
+        statusClass = $"toc-status-{type}";
+        
+        Task.Delay(3000).ContinueWith(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                statusMessage = "";
+                statusClass = "";
+                StateHasChanged();
+            });
+        });
+    }
+}
