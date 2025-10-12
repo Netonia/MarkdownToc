@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace MarkdownTocApp.Services;
+namespace MarkdownToc.Services;
 
 public class TocGeneratorService
 {
